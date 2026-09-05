@@ -34,7 +34,10 @@ async def obtener_tasa_bcv():
             if not field_content:
                 field_content = dolar_div.find("strong")
 
-            tasa_str = field_content.text.strip().replace(",", ".")
+            tasa_str = field_content.text.strip()
+            # El BCV usa '.' como separador de miles y ',' como decimal
+            # (ej. "1.234,56"). Normalizamos a formato float estándar.
+            tasa_str = tasa_str.replace(".", "").replace(",", ".")
             tasa_val = float(re.sub(r"[^\d.]", "", tasa_str))
 
             return {
