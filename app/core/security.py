@@ -12,18 +12,18 @@ async def get_api_key(
     """
     Dependencia de seguridad inter-servicio.
 
-    Valida la cabecera X-API-Key contra la variable de entorno SCRAPING_API_KEY.
-    Retorna 401 si la clave no está presente o no coincide.
+    Modo de operación (decisión de despliegue del negocio):
+    - Si SCRAPING_API_KEY NO está configurada en el entorno → acceso libre.
+      El microservicio se considera interno (red privada Railway / localhost)
+      y no expone endpoints públicos. El backend Node no envía la cabecera.
+    - Si SCRAPING_API_KEY está configurada → se valida la cabecera X-API-Key
+      (401 si falta o no coincide), igual que antes.
     """
     clave_esperada = os.getenv("SCRAPING_API_KEY", "")
 
+    # Modo interno: sin clave configurada, no se exige cabecera.
     if not clave_esperada:
-        # Sin clave configurada en el entorno, se rechaza todo acceso
-        # para no exponer el microservicio accidentalmente.
-        raise HTTPException(
-            status_code=401,
-            detail="Servicio sin SCRAPING_API_KEY configurada en el servidor",
-        )
+        return ""
 
     if not api_key or api_key != clave_esperada:
         raise HTTPException(status_code=401, detail="API Key inválida o ausente")
