@@ -13,7 +13,12 @@ async def obtener_tasa_bcv():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36"
     }
 
-    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+    # TLS verificado de forma normal (verify=True es el valor por defecto).
+    # El sitio del BCV ha presentado históricamente una cadena de certificados
+    # rota/incompleta. NO desactivamos la verificación como solución: si la
+    # verificación falla, devolvemos 503 documentado y el backend aplica su
+    # fallback (última tasa persistida), nunca una tasa inventada como oficial.
+    async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             res = await client.get(url, headers=headers)
             if res.status_code != 200:
@@ -46,6 +51,16 @@ async def obtener_tasa_bcv():
                 "origen": "Banco Central de Venezuela",
             }
 
+        except httpx.ConnectError as e:
+            # Falla de conexión/TLS (incluye cadena de certificados del BCV rota).
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "No se pudo establecer una conexión TLS verificada con el BCV "
+                    f"({type(e).__name__}). La tasa oficial en vivo no está disponible; "
+                    "el sistema debe usar la última tasa persistida como fallback."
+                ),
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=503, detail=f"Error al obtener tasa BCV: {str(e)}"

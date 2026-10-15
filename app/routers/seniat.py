@@ -46,7 +46,11 @@ def calcular_rif_completo(cedula_o_rif: str) -> str:
 async def consultar_seniat(cedula_o_rif: str):
     rif = calcular_rif_completo(cedula_o_rif)
 
-    if not rif:
+    # Validación ANTES de cualquier llamada de red: la entrada debe contener al
+    # menos un dígito. La función de arriba completa el dígito verificador de
+    # cédulas parciales (comportamiento existente y deseado), pero una entrada
+    # sin dígitos no representa ningún identificador consultable.
+    if not rif or not any(ch.isdigit() for ch in cedula_o_rif):
         raise HTTPException(status_code=400, detail="Formato de Cédula/RIF inválido")
 
     url = f"http://contribuyente.seniat.gob.ve/getContribuyente/getrif?rif={rif}"
@@ -58,8 +62,13 @@ async def consultar_seniat(cedula_o_rif: str):
         "Host": "contribuyente.seniat.gob.ve",
     }
 
+    # NOTA: el portal del SENIAT se consulta por HTTP plano (no ofrece TLS en este
+    # endpoint). `verify=False` era engañoso (no aplica a HTTP) y se elimina.
+    # La consulta envía solo el RIF (dato público de contribuyente), sin credenciales.
+    # El portal redirige http→https (302); seguimos la redirección y en https
+    # httpx verifica el certificado de forma normal (verify=True por defecto).
     try:
-        async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
             res = await client.get(url, headers=headers)
 
             if res.status_code != 200:
